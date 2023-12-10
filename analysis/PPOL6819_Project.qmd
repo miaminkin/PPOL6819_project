@@ -1,0 +1,311 @@
+---
+title: "PPOL6819_Project"
+author: "Mia Minkin, Yash Dhuldhoya, and Jack Gleisberg"
+format: html
+code-fold: true
+embed-resources: true
+editor: visual
+---
+
+# PPOL6819 Final Project / Fall 2023
+
+# Predicting the Impact of the Expanded Child Tax Credit on Voter Turnout in the United States
+
+## Background (TO BE COMPLETED)
+
+-   Overview of the federal child tax credit and its expansion under the American Rescue Plan
+
+-   Connection between income and voter turnout - elasticity between \$ and voting, cost-benefit
+
+-   Hypothesis
+
+## Introduction (TO BE COMPLETED)
+
+-   Overview of the project
+
+-   Description of approach - microsim model and ML model
+
+## Microsimulation Model
+
+**Accounting rules for the Child Tax Credit under the American Rescue Plan Act:**
+
+Maximum credit:
+
+-   \$3000 per qualifying child between ages 6 and 17
+
+-   \$3600 per qualifying child under age 6
+
+Phase-out levels:
+
+1.  The available tax credit is reduced by \$50 for each \$1000 exceeding the income threshold below until the benefit reaches \$2000 / child:
+    -   \$150,000 for married couples filing a joint return
+
+    -   \$75,000 for single filer or married couples filing separate returns
+2.  The available tax credit will not be reduced to below \$2000 / child until the household income exceeds the threshold below:
+    -   \$400,000 for married couples filing a joint return
+
+    -   \$200,000 for all other filers
+
+**Assumptions:**
+
+1.  Ignore the first \$75,000 of family income if there is a single parent and ignore the first \$150,000 if there are (2) parents.
+2.  Create a maximum benefit of \$3000 for children ages 6 and 17 and \$3600 for children under 6.
+3.  Reduce the benefit by \$50 for every \$1000 of income in excess of \$75,000 for single households and the same in excess of \$150,000 for two-parent households until the maximum benefit hits \$2000 / child. (For families with a single parent, the benefit is held constant at \$95,000 - \$200,000. For families with (2) parents, the benefit is held constant at \$170,000 - \$400,000)
+4.  Reduce the benefit by \$50 for every \$1000 in excess of \$200,000 for single parent households and in excess of \$400,000 for (2) parent households.
+
+**Calculator**
+
+House-keeping things
+
+```{r, output = FALSE}
+# Loading in packages
+library(tidyverse)
+library(here)
+
+# Loading in data
+asec <- read_csv(here("data/asec23_family.csv")) %>% 
+
+  # Subsetting data for microsimulation model
+  
+  select(
+    FKIND,
+    FTOTVAL,
+    FOWNU18,
+    FOWNU6) %>% 
+  
+  mutate(
+    FKIND = 
+      case_when(
+        FKIND > 1 ~ 0,
+        FKIND == 1 ~ 1)) %>%
+    
+  mutate(
+    hh_income = FTOTVAL,
+    married_couple = FKIND,
+    older_children = FOWNU18 - FOWNU6,
+    young_children = FOWNU6,
+    num_children = FOWNU18) %>% 
+  
+  select(
+    hh_income,
+    married_couple,
+    older_children,
+    young_children,
+    num_children)
+
+```
+
+Calculator function - ARPA Child Tax Credit
+
+```{r}
+
+#' Calculating the total child tax credit benefit for families under the American Rescue Plan Act's expanded child tax credit
+#'
+#' @param hh_income Numeric total of family income in a year
+#' @param married_couple Binary variable for if parents are married or not
+#' @param older_children Numeric total number of children 6 - 18
+#' @param young_children Numeric total number of children under age 6
+#'
+#' @return Numeric benefit in dollars
+#'
+
+arpa_tax_credit <- function(hh_income, married_couple, older_children, young_children){
+  
+# Assumption: Maximum income for full benefit = $75,000 if one head of household OR $150,000 if married household
+  
+  mod_income <- 
+    if_else(
+      condition = married_couple == 1,
+      true = pmax(hh_income - 150000, 0),
+      false = pmax(hh_income - 75000, 0))
+
+  # Benefit per child
+  
+  benefit <- 
+    
+    case_when(
+      
+      # Married couple, income < 400k, only older children
+      married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children == 0 ~ 
+        pmax(2000, (3000 * older_children) - 0.05 * mod_income),
+
+      # Married couple, income > 400k, only older children
+      married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children == 0 ~ 
+        pmax(0, (3000 * older_children) - 0.05 * mod_income),
+      
+      # Single household, income < 200k, only older children
+      married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children == 0 ~
+        pmax(2000, (3000 * older_children) - 0.05 * mod_income),
+      
+      # Single household, income > 200k, only older children
+      married_couple == 0 & hh_income > 200000 & older_children >= 1 & young_children == 0 ~ 
+        pmax(0, (3000 * older_children) - 0.05 * mod_income),
+      
+      # Married couple, income < 400k, only young children
+      married_couple == 1 & hh_income < 400000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(2000, (3600 * young_children) - 0.05 * mod_income),
+      
+      # Married couple, income > 400k, only young children
+      married_couple == 1 & hh_income < 400000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(0, (3600 * young_children) - 0.05 * mod_income),
+      
+      # Single household, income < 200k, only young children
+     married_couple == 0 & hh_income < 200000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(2000, (3600 * young_children) - 0.05 * mod_income),
+     
+      # Single household, income > 200k, only young children
+     married_couple == 0 & hh_income > 200000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(0, (3600 * young_children) - 0.05 * mod_income),
+  
+      # Married couple, income < 400k, older and young children
+     married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children >= 1 ~
+       pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+
+      # Married couple, income > 400k, older and young children
+     married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children >= 1 ~
+       pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+     
+      # Single couple, income < 200k, older and young children
+     married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children >= 1 ~
+       pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+     
+      # Single couple, income > 200k, older and young children
+     married_couple == 0  & hh_income > 200000 & older_children >= 1 & young_children >= 1 ~
+       pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+
+    TRUE ~ 0)
+  
+  return(benefit)
+    
+}
+
+```
+
+Applying the ARPA policy proposal
+
+```{r}
+# Proposal
+arpa_prop_asec <-
+  asec %>% 
+  select(!num_children)
+  
+arpa_credit <-
+  arpa_prop_asec %>%
+  mutate(
+    benefit = pmap_dbl(arpa_prop_asec, arpa_tax_credit))
+  
+```
+
+**Accounting rules for the NON expanded Child Tax Credit**
+
+Maximum credit:
+
+-   \$2000 per qualifying child
+
+Phase-out levels:
+
+1.  The available tax credit is reduced by \$50 per \$1000 above the threshold outlined below:
+    -   \$400,000 for married couples filing a joint return
+
+    -   \$200,000 for all other filers
+
+**Assumptions:**
+
+1.  Ignore the first \$200,000 of family income if there is a single parent and ignore the first \$400,000 if there are (2) parents.
+2.  Create a maximum benefit of \$2000 for all children
+3.  Reduce the benefit by \$50 for every \$1000 of income in excess of \$200,000 for single households and the same in excess of \$400,000 for two-parent households.
+
+Calculator function - Normal Child Tax Credit
+
+```{r}
+
+#' Calculating the total child tax credit benefit for families under the American Rescue Plan Act's expanded child tax credit
+#'
+#' @param hh_income Numeric total of family income in a year
+#' @param married_couple Binary variable for if parents are married or not
+#' @param num_children Number of qualifying children
+#'
+#' @return Numeric benefit in dollars
+#'
+
+child_tax_credit <- function(hh_income, married_couple, num_children){
+  
+# Assumption: Maximum income for full benefit = $200,000 if one head of household OR $400,000 if married household
+  
+  mod_income <- 
+    if_else(
+      condition = married_couple == 1,
+      true = pmax(hh_income - 400000, 0),
+      false = pmax(hh_income - 200000, 0))
+
+  # Benefit per child
+  
+  benefit <- 
+    
+    case_when(
+      
+      # Married couple
+      married_couple == 1 ~ pmax(0, (2000 * num_children) - 0.05 * mod_income),
+      
+      # Single household
+      married_couple == 0 ~ pmax(0, (2000 * num_children) - 0.05 * mod_income),
+
+    TRUE ~ 0)
+  
+  return(benefit)
+    
+}
+
+```
+
+Applying the normal child tax credit
+
+```{r}
+# Normal proposal 
+
+ctc_asec <-
+  asec %>% 
+  select(married_couple, hh_income, num_children)
+
+normal_ctc <-
+  ctc_asec %>% 
+  mutate(
+    benefit = pmap_dbl(ctc_asec, child_tax_credit))
+  
+```
+
+Distributional analysis
+
+```{r}
+normal_ctc <-
+  normal_ctc %>% 
+  mutate(
+    credit = "normal_ctc")
+
+arpa_credit <-
+  arpa_credit %>% 
+  mutate(
+    credit = "arpa_ctc")
+  
+credits_combined <-
+  bind_rows(normal_ctc, arpa_credit)
+
+credits_combined %>% 
+  
+  summarize(
+    mean_benefit = mean(benefit),
+    .by = credit) %>% 
+  
+  ggplot() +
+  geom_col(
+    aes(x = credit,
+        y = mean_benefit),
+    fill = "light green") +
+  
+  labs(
+    title = "Estimating mean benefit of federal child tax credit",
+    subtitle = "Comparing the expanded CTC versus the normal CTC",
+    x = "Credit type",
+    y = "Mean benefit")
+  
+```
