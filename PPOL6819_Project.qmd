@@ -1,0 +1,548 @@
+---
+title: "PPOL6819_Project"
+author: "Mia Minkin, Yash Dhuldhoya, and Jack Gleisberg"
+format: html
+code-fold: true
+embed-resources: true
+editor: visual
+---
+
+# PPOL6819 Final Project / Fall 2023
+
+# Predicting the Impact of the Expanded Child Tax Credit on Voter Turnout in the United States
+
+## Background (TO BE COMPLETED)
+
+-   Overview of the federal child tax credit and its expansion under the American Rescue Plan
+
+-   Connection between income and voter turnout - elasticity between \$ and voting, cost-benefit
+
+-   Hypothesis
+
+## Introduction (TO BE COMPLETED)
+
+-   Overview of the project
+
+-   Description of approach - microsim model and ML model
+
+-   Discussion of the data sets being utilized (ASEC and CPS voting supplement)
+
+## Microsimulation Model
+
+**Accounting rules for the Child Tax Credit under the American Rescue Plan Act:**
+
+Maximum credit:
+
+-   \$3000 per qualifying child between ages 6 and 17
+
+-   \$3600 per qualifying child under age 6
+
+Phase-out levels:
+
+1.  The available tax credit is reduced by \$50 for each \$1000 exceeding the income threshold below until the benefit reaches \$2000 / child:
+    -   \$150,000 for married couples filing a joint return
+
+    -   \$75,000 for single filer or married couples filing separate returns
+2.  The available tax credit will not be reduced to below \$2000 / child until the household income exceeds the threshold below:
+    -   \$400,000 for married couples filing a joint return
+
+    -   \$200,000 for all other filers
+
+**Assumptions:**
+
+1.  Ignore the first \$75,000 of family income if there is a single parent and ignore the first \$150,000 if there are (2) parents.
+2.  Create a maximum benefit of \$3000 for children ages 6 and 17 and \$3600 for children under 6.
+3.  Reduce the benefit by \$50 for every \$1000 of income in excess of \$75,000 for single households and the same in excess of \$150,000 for two-parent households until the maximum benefit hits \$2000 / child. (For families with a single parent, the benefit is held constant at \$95,000 - \$200,000. For families with (2) parents, the benefit is held constant at \$170,000 - \$400,000)
+4.  Reduce the benefit by \$50 for every \$1000 in excess of \$200,000 for single parent households and in excess of \$400,000 for (2) parent households.
+
+**House-keeping things**
+
+```{r, output = FALSE}
+# Loading in packages
+library(tidyverse)
+library(here)
+
+# Loading in data
+asec <- read_csv(here("data/asec23_family.csv")) %>% 
+
+  # Subsetting data for microsimulation model
+  
+  select(
+    FKIND,
+    FTOTVAL,
+    FOWNU18,
+    FOWNU6) %>% 
+  
+  mutate(
+    FKIND = 
+      case_when(
+        FKIND > 1 ~ 0,
+        FKIND == 1 ~ 1)) %>%
+    
+  mutate(
+    hh_income = FTOTVAL,
+    married_couple = FKIND,
+    older_children = FOWNU18 - FOWNU6,
+    young_children = FOWNU6,
+    num_children = FOWNU18) %>% 
+  
+  select(
+    hh_income,
+    married_couple,
+    older_children,
+    young_children,
+    num_children)
+```
+
+**Calculator function - ARPA Child Tax Credit**
+
+```{r}
+
+#' Calculating the total child tax credit benefit for families under the American Rescue Plan Act's expanded child tax credit
+#'
+#' @param hh_income Numeric total of family income in a year
+#' @param married_couple Binary variable for if parents are married or not
+#' @param older_children Numeric total number of children 6 - 18
+#' @param young_children Numeric total number of children under age 6
+#'
+#' @return Numeric benefit in dollars
+#'
+
+arpa_tax_credit <- function(hh_income, married_couple, older_children, young_children){
+  
+# Assumption: Maximum income for full benefit = $75,000 if one head of household OR $150,000 if married household
+  
+  mod_income <- 
+    if_else(
+      condition = married_couple == 1,
+      true = pmax(hh_income - 150000, 0),
+      false = pmax(hh_income - 75000, 0))
+
+  # Benefit per child
+  
+  benefit <- 
+    
+    case_when(
+      
+      # Married couple, income < 400k, only older children
+      married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children == 0 ~ 
+        pmax(2000, (3000 * older_children) - 0.05 * mod_income),
+
+      # Married couple, income > 400k, only older children
+      married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children == 0 ~ 
+        pmax(0, (3000 * older_children) - 0.05 * mod_income),
+      
+      # Single household, income < 200k, only older children
+      married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children == 0 ~
+        pmax(2000, (3000 * older_children) - 0.05 * mod_income),
+      
+      # Single household, income > 200k, only older children
+      married_couple == 0 & hh_income > 200000 & older_children >= 1 & young_children == 0 ~ 
+        pmax(0, (3000 * older_children) - 0.05 * mod_income),
+      
+      # Married couple, income < 400k, only young children
+      married_couple == 1 & hh_income < 400000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(2000, (3600 * young_children) - 0.05 * mod_income),
+      
+      # Married couple, income > 400k, only young children
+      married_couple == 1 & hh_income < 400000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(0, (3600 * young_children) - 0.05 * mod_income),
+      
+      # Single household, income < 200k, only young children
+     married_couple == 0 & hh_income < 200000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(2000, (3600 * young_children) - 0.05 * mod_income),
+     
+      # Single household, income > 200k, only young children
+     married_couple == 0 & hh_income > 200000 & older_children == 0 & young_children >= 1 ~ 
+        pmax(0, (3600 * young_children) - 0.05 * mod_income),
+  
+      # Married couple, income < 400k, older and young children
+     married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children >= 1 ~
+       pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+
+      # Married couple, income > 400k, older and young children
+     married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children >= 1 ~
+       pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+     
+      # Single couple, income < 200k, older and young children
+     married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children >= 1 ~
+       pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+     
+      # Single couple, income > 200k, older and young children
+     married_couple == 0  & hh_income > 200000 & older_children >= 1 & young_children >= 1 ~
+       pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+
+    TRUE ~ 0)
+  
+  return(benefit)
+    
+}
+
+```
+
+**Applying the ARPA policy proposal**
+
+```{r}
+# Proposal
+arpa_prop_asec <-
+  asec %>% 
+  select(!num_children)
+  
+arpa_credit <-
+  arpa_prop_asec %>%
+  mutate(
+    benefit = pmap_dbl(arpa_prop_asec, arpa_tax_credit))
+  
+```
+
+**Accounting rules for the NON expanded Child Tax Credit**
+
+Maximum credit:
+
+-   \$2000 per qualifying child
+
+Phase-out levels:
+
+1.  The available tax credit is reduced by \$50 per \$1000 above the threshold outlined below:
+    -   \$400,000 for married couples filing a joint return
+
+    -   \$200,000 for all other filers
+
+**Assumptions:**
+
+1.  Ignore the first \$200,000 of family income if there is a single parent and ignore the first \$400,000 if there are (2) parents.
+2.  Create a maximum benefit of \$2000 for all children
+3.  Reduce the benefit by \$50 for every \$1000 of income in excess of \$200,000 for single households and the same in excess of \$400,000 for two-parent households.
+
+**Calculator function - Normal Child Tax Credit**
+
+```{r}
+
+#' Calculating the total child tax credit benefit for families under the American Rescue Plan Act's expanded child tax credit
+#'
+#' @param hh_income Numeric total of family income in a year
+#' @param married_couple Binary variable for if parents are married or not
+#' @param num_children Number of qualifying children
+#'
+#' @return Numeric benefit in dollars
+#'
+
+child_tax_credit <- function(hh_income, married_couple, num_children){
+  
+# Assumption: Maximum income for full benefit = $200,000 if one head of household OR $400,000 if married household
+  
+  mod_income <- 
+    if_else(
+      condition = married_couple == 1,
+      true = pmax(hh_income - 400000, 0),
+      false = pmax(hh_income - 200000, 0))
+
+  # Benefit per child
+  
+  benefit <- 
+    
+    case_when(
+      
+      # Married couple
+      married_couple == 1 ~ pmax(0, (2000 * num_children) - 0.05 * mod_income),
+      
+      # Single household
+      married_couple == 0 ~ pmax(0, (2000 * num_children) - 0.05 * mod_income),
+
+    TRUE ~ 0)
+  
+  return(benefit)
+    
+}
+
+```
+
+**Applying the normal child tax credit**
+
+```{r}
+# Normal proposal 
+
+ctc_asec <-
+  asec %>% 
+  select(married_couple, hh_income, num_children)
+
+normal_ctc <-
+  ctc_asec %>% 
+  mutate(
+    benefit = pmap_dbl(ctc_asec, child_tax_credit))
+  
+```
+
+**Distributional analysis**
+
+```{r}
+normal_ctc <-
+  normal_ctc %>% 
+  mutate(
+    credit = "normal_ctc")
+
+arpa_credit <-
+  arpa_credit %>% 
+  mutate(
+    credit = "arpa_ctc")
+  
+credits_combined <-
+  bind_rows(normal_ctc, arpa_credit)
+
+credits_combined %>% 
+  
+  summarize(
+    mean_benefit = mean(benefit),
+    .by = credit) %>% 
+  
+  ggplot() +
+  geom_col(
+    aes(x = credit,
+        y = mean_benefit),
+    fill = "light green") +
+  
+  labs(
+    title = "Estimating mean benefit of federal child tax credit",
+    subtitle = "Comparing the expanded CTC versus the normal CTC",
+    x = "Credit type",
+    y = "Mean benefit")
+  
+```
+
+## Machine Learning Model
+
+\*\* Data pre-processing \*\*
+
+Pre-processing ASEC data
+
+```{r}
+
+# Appending data, adding benefit to total income
+
+asec_full <-
+  
+  bind_cols(
+    asec, 
+    arpa_credit$benefit, 
+    normal_ctc$benefit) %>% 
+  
+  mutate(
+    arpa_benefit = ...6,
+    ctc_reg = ...7) %>% 
+  
+  select(
+    hh_income,
+    arpa_benefit,
+    ctc_reg) %>% 
+  
+  mutate(
+    no_ctc_inc = hh_income,
+    arpa_tot_inc = hh_income + arpa_benefit,
+    ctc_reg_tot_inc = hh_income + ctc_reg) %>% 
+  
+  select(
+    no_ctc_inc,
+    arpa_tot_inc,
+    ctc_reg_tot_inc)
+
+# Refactoring data
+
+asec_refactored <-
+  asec_full %>% 
+  mutate(
+   
+     no_ctc_inc =
+      case_when(
+        no_ctc_inc < 5000 ~ 1,
+        no_ctc_inc <= 7499 ~ 2,
+        no_ctc_inc <= 9999 ~ 3,
+        no_ctc_inc <= 12499 ~ 4,
+        no_ctc_inc <= 14999 ~ 5,
+        no_ctc_inc <= 19999 ~ 6,
+        no_ctc_inc <= 24999 ~ 7,
+        no_ctc_inc <= 29999 ~ 8, 
+        no_ctc_inc <= 34999 ~ 9,
+        no_ctc_inc <= 39999 ~ 10,
+        no_ctc_inc <= 49999 ~ 11,
+        no_ctc_inc <= 59999 ~ 12,
+        no_ctc_inc <= 74999 ~ 13,
+        no_ctc_inc <= 99999 ~ 14,
+        no_ctc_inc <= 149999 ~ 15,
+        no_ctc_inc >= 150000 ~ 16),
+   
+    arpa_tot_inc =
+      case_when(
+        arpa_tot_inc < 5000 ~ 1,
+        arpa_tot_inc <= 7499 ~ 2,
+        arpa_tot_inc <= 9999 ~ 3,
+        arpa_tot_inc <= 12499 ~ 4,
+        arpa_tot_inc <= 14999 ~ 5,
+        arpa_tot_inc <= 19999 ~ 6,
+        arpa_tot_inc <= 24999 ~ 7,
+        arpa_tot_inc <= 29999 ~ 8, 
+        arpa_tot_inc <= 34999 ~ 9,
+        arpa_tot_inc <= 39999 ~ 10,
+        arpa_tot_inc <= 49999 ~ 11,
+        arpa_tot_inc <= 59999 ~ 12,
+        arpa_tot_inc <= 74999 ~ 13,
+        arpa_tot_inc <= 99999 ~ 14,
+        arpa_tot_inc <= 149999 ~ 15,
+        arpa_tot_inc >= 150000 ~ 16),
+    
+     ctc_reg_tot_inc =
+      case_when(
+        ctc_reg_tot_inc < 5000 ~ 1,
+        ctc_reg_tot_inc <= 7499 ~ 2,
+        ctc_reg_tot_inc <= 9999 ~ 3,
+        ctc_reg_tot_inc <= 12499 ~ 4,
+        ctc_reg_tot_inc <= 14999 ~ 5,
+        ctc_reg_tot_inc <= 19999 ~ 6,
+        ctc_reg_tot_inc <= 24999 ~ 7,
+        ctc_reg_tot_inc <= 29999 ~ 8, 
+        ctc_reg_tot_inc <= 34999 ~ 9,
+        ctc_reg_tot_inc <= 39999 ~ 10,
+        ctc_reg_tot_inc <= 49999 ~ 11,
+        ctc_reg_tot_inc <= 59999 ~ 12,
+        ctc_reg_tot_inc <= 74999 ~ 13,
+        ctc_reg_tot_inc <= 99999 ~ 14,
+        ctc_reg_tot_inc <= 149999 ~ 15,
+        ctc_reg_tot_inc >= 150000 ~ 16))
+
+```
+
+Reading in the CPS Voting Supplement Data
+
+```{r, output = FALSE}
+cps <- read_csv(here("data/cps_supp.csv")) %>% 
+  
+  select(
+    PEEDUCA,
+    PEMARITL,
+    PESEX,
+    PEMLR,
+    PTDTRACE,
+    HEFAMINC,
+    PES2,
+    PES1) %>% 
+  
+  mutate(
+    education = PEEDUCA,
+    marital_status = PEMARITL,
+    sex = PESEX,
+    emp_status = PEMLR,
+    race = PTDTRACE,
+    fam_inc = HEFAMINC,
+    voted = PES1) %>%
+  
+  filter(
+    !education == -1,
+    !marital_status == -1,
+    !emp_status == -1,
+    !race == -1,
+    !fam_inc == -1,
+    !voted < 0) %>% 
+  
+  select(
+    education,
+    marital_status,
+    emp_status,
+    race,
+    fam_inc,
+    voted)
+  
+```
+
+Exploratory Data Analysis - Voter turnout rate by income level
+
+```{r}
+
+# Voter turnout rate by income level
+
+voter_turnout <-
+  
+  cps %>% 
+  
+  mutate(
+    inc_grouped = 
+      case_when(
+        fam_inc <= 7 ~ "$25,000 or less",
+        fam_inc <= 11 ~ "$25,000 - $50,000",
+        fam_inc <= 13 ~ "$50,000 - $75,000",
+        fam_inc == 14 ~ "$75,000 - $100,000",
+        fam_inc <= 16 ~ "$150,000 +")) %>%
+  
+  summarize(
+    total_votes = n(),
+    .by = c(voted, inc_grouped)) %>% 
+  
+  arrange(inc_grouped) %>% 
+  
+  pivot_wider(
+    values_from = total_votes,
+    names_from = voted) %>% 
+  
+  mutate(
+    voted = `1`,
+    no_vote = `2`) %>% 
+  
+  select(
+    inc_grouped,
+    voted,
+    no_vote) %>% 
+  
+  mutate(
+    total_pop = voted + no_vote,
+    turnout_rate = voted / total_pop) %>% 
+  
+  mutate(
+    inc_grouped = fct_reorder(inc_grouped, turnout_rate, .desc = FALSE))
+      
+voter_turnout %>% 
+  
+  ggplot() +
+  
+  geom_col(
+    aes(
+      x = inc_grouped, 
+      y = turnout_rate),
+    fill = "blue") +
+      
+  labs(
+    title = "Voter Turnout Rate by Income Level",
+    x = "Income Level",
+    y = "Voter Turnout Rate")
+
+```
+
+Exploratory data analysis - Mean income under each policy
+
+```{r}
+asec_full %>% 
+  
+  summarize(
+    avg_none = mean(no_ctc_inc),
+    avg_ctc = mean(ctc_reg_tot_inc),
+    avg_arpa = mean(arpa_tot_inc)) %>% 
+  
+  pivot_longer(
+    cols = c("avg_none", "avg_ctc", "avg_arpa")) %>% 
+  
+  mutate(
+    policy = name,
+    avg_inc = value) %>% 
+ 
+   select(
+    policy,
+    avg_inc) %>% 
+  
+  kableExtra::kable()
+```
+
+
+
+
+
+
+
+
+
