@@ -70,35 +70,66 @@ library(tidyverse)
 library(here)
 
 # Loading in data
-asec <- read_csv(here("data/asec23_family.csv")) %>% 
+
+asec_2022 <-
   
-  # Subsetting data for microsimulation model
+  read_csv(here("data/asec_individual.csv")) %>% 
+
+  # Subsetting to necessary variables
+  
+    filter(YEAR == 2022) %>% 
   
   select(
-    FKIND,
+    
+    SERIAL,
     FTOTVAL,
-    FOWNU18,
-    FOWNU6) %>% 
+    AGE,
+    SEX,
+    RACE,
+    EMPSTAT,
+    MARST,
+    EDUC,
+    NCHILD,
+    NCHLT5,
+    HWTFINL,
+    WTFINL,
+    ASECWTH) %>% 
+  
+  filter(
+    !FTOTVAL == "NA",
+    !FTOTVAL < 0,
+    !AGE < 18,
+    !SEX == 9,
+    !EMPSTAT == 00,
+    !RACE == 999,
+    !MARST == 9,
+    !EDUC == 999,
+    !EDUC == 000,
+    !EDUC == 001) %>% 
   
   mutate(
-    FKIND = 
+    MARST =
       case_when(
-        FKIND > 1 ~ 0,
-        FKIND == 1 ~ 1)) %>%
+        MARST == 1 ~ 1,
+        TRUE ~ 0)) %>% 
+  
+  rename(
+    label = SERIAL,
+    hh_income = FTOTVAL,
+    sex = SEX,
+    marital_status = MARST,
+    emp_status = EMPSTAT,
+    age = AGE, 
+    race = RACE,
+    education = EDUC,
+    tot_children = NCHILD,
+    young_children = NCHLT5) %>% 
   
   mutate(
-    hh_income = FTOTVAL,
-    married_couple = FKIND,
-    older_children = FOWNU18 - FOWNU6,
-    young_children = FOWNU6,
-    num_children = FOWNU18) %>% 
+    old_children = tot_children - young_children) %>% 
   
-  select(
-    hh_income,
-    married_couple,
-    older_children,
-    young_children,
-    num_children)
+  distinct(label, .keep_all = TRUE)
+
 ```
 
 **Calculator function - ARPA Child Tax Credit**
@@ -108,20 +139,20 @@ asec <- read_csv(here("data/asec23_family.csv")) %>%
 #' Calculating the total child tax credit benefit for families under the American Rescue Plan Act's expanded child tax credit
 #'
 #' @param hh_income Numeric total of family income in a year
-#' @param married_couple Binary variable for if parents are married or not
-#' @param older_children Numeric total number of children 6 - 18
+#' @param marital_status Binary variable for if parents are married or not
+#' @param old_children Numeric total number of children 6 - 18
 #' @param young_children Numeric total number of children under age 6
 #'
 #' @return Numeric benefit in dollars
 #'
 
-arpa_tax_credit <- function(hh_income, married_couple, older_children, young_children){
+arpa_tax_credit <- function(hh_income, marital_status, old_children, young_children){
   
   # Assumption: Maximum income for full benefit = $75,000 if one head of household OR $150,000 if married household
   
   mod_income <- 
     if_else(
-      condition = married_couple == 1,
+      condition = marital_status == 1,
       true = pmax(hh_income - 150000, 0),
       false = pmax(hh_income - 75000, 0))
   
@@ -132,52 +163,52 @@ arpa_tax_credit <- function(hh_income, married_couple, older_children, young_chi
     case_when(
       
       # Married couple, income < 400k, only older children
-      married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children == 0 ~ 
-        pmax(2000, (3000 * older_children) - 0.05 * mod_income),
+      marital_status == 1 & hh_income < 400000 & old_children >= 1 & young_children == 0 ~ 
+        pmax(2000, (3000 * old_children) - 0.05 * mod_income),
       
       # Married couple, income > 400k, only older children
-      married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children == 0 ~ 
-        pmax(0, (3000 * older_children) - 0.05 * mod_income),
+      marital_status == 1 & hh_income > 400000 & old_children >= 1 & young_children == 0 ~ 
+        pmax(0, (3000 * old_children) - 0.05 * mod_income),
       
       # Single household, income < 200k, only older children
-      married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children == 0 ~
-        pmax(2000, (3000 * older_children) - 0.05 * mod_income),
+      marital_status == 0 & hh_income < 200000 & old_children >= 1 & young_children == 0 ~
+        pmax(2000, (3000 * old_children) - 0.05 * mod_income),
       
       # Single household, income > 200k, only older children
-      married_couple == 0 & hh_income > 200000 & older_children >= 1 & young_children == 0 ~ 
-        pmax(0, (3000 * older_children) - 0.05 * mod_income),
+      marital_status == 0 & hh_income > 200000 & old_children >= 1 & young_children == 0 ~ 
+        pmax(0, (3000 * old_children) - 0.05 * mod_income),
       
       # Married couple, income < 400k, only young children
-      married_couple == 1 & hh_income < 400000 & older_children == 0 & young_children >= 1 ~ 
+      marital_status == 1 & hh_income < 400000 & old_children == 0 & young_children >= 1 ~ 
         pmax(2000, (3600 * young_children) - 0.05 * mod_income),
       
       # Married couple, income > 400k, only young children
-      married_couple == 1 & hh_income < 400000 & older_children == 0 & young_children >= 1 ~ 
+      marital_status == 1 & hh_income < 400000 & old_children == 0 & young_children >= 1 ~ 
         pmax(0, (3600 * young_children) - 0.05 * mod_income),
       
       # Single household, income < 200k, only young children
-      married_couple == 0 & hh_income < 200000 & older_children == 0 & young_children >= 1 ~ 
+      marital_status == 0 & hh_income < 200000 & old_children == 0 & young_children >= 1 ~ 
         pmax(2000, (3600 * young_children) - 0.05 * mod_income),
       
       # Single household, income > 200k, only young children
-      married_couple == 0 & hh_income > 200000 & older_children == 0 & young_children >= 1 ~ 
+      marital_status == 0 & hh_income > 200000 & old_children == 0 & young_children >= 1 ~ 
         pmax(0, (3600 * young_children) - 0.05 * mod_income),
       
       # Married couple, income < 400k, older and young children
-      married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children >= 1 ~
-        pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      marital_status == 1 & hh_income < 400000 & old_children >= 1 & young_children >= 1 ~
+        pmax(2000, ((3000 * old_children) + (3600 * young_children)) - 0.05 * mod_income),
       
       # Married couple, income > 400k, older and young children
-      married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children >= 1 ~
-        pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      marital_status == 1 & hh_income > 400000 & old_children >= 1 & young_children >= 1 ~
+        pmax(0, ((3000 * old_children) + (3600 * young_children)) - 0.05 * mod_income),
       
       # Single couple, income < 200k, older and young children
-      married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children >= 1 ~
-        pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      marital_status == 0 & hh_income < 200000 & old_children >= 1 & young_children >= 1 ~
+        pmax(2000, ((3000 * old_children) + (3600 * young_children)) - 0.05 * mod_income),
       
       # Single couple, income > 200k, older and young children
-      married_couple == 0  & hh_income > 200000 & older_children >= 1 & young_children >= 1 ~
-        pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      marital_status == 0  & hh_income > 200000 & old_children >= 1 & young_children >= 1 ~
+        pmax(0, ((3000 * old_children) + (3600 * young_children)) - 0.05 * mod_income),
       
       TRUE ~ 0)
   
@@ -190,15 +221,16 @@ arpa_tax_credit <- function(hh_income, married_couple, older_children, young_chi
 **Applying the ARPA policy proposal**
 
 ```{r}
-# Proposal
-arpa_prop_asec <-
-  asec %>% 
-  select(!num_children)
 
+# Proposal
+asec_arpa <-
+  asec_2022 %>% 
+  select(hh_income, marital_status, young_children, old_children)
+  
 arpa_credit <-
-  arpa_prop_asec %>%
+  asec_arpa %>%
   mutate(
-    benefit = pmap_dbl(arpa_prop_asec, arpa_tax_credit))
+    benefit = pmap_dbl(asec_arpa, arpa_tax_credit))
 
 ```
 
@@ -229,19 +261,19 @@ Phase-out levels:
 #' Calculating the total child tax credit benefit for families under the American Rescue Plan Act's expanded child tax credit
 #'
 #' @param hh_income Numeric total of family income in a year
-#' @param married_couple Binary variable for if parents are married or not
-#' @param num_children Number of qualifying children
+#' @param marital_status Binary variable for if parents are married or not
+#' @param tot_children Number of qualifying children
 #'
 #' @return Numeric benefit in dollars
 #'
 
-child_tax_credit <- function(hh_income, married_couple, num_children){
+child_tax_credit <- function(hh_income, marital_status, tot_children){
   
   # Assumption: Maximum income for full benefit = $200,000 if one head of household OR $400,000 if married household
   
   mod_income <- 
     if_else(
-      condition = married_couple == 1,
+      condition = marital_status == 1,
       true = pmax(hh_income - 400000, 0),
       false = pmax(hh_income - 200000, 0))
   
@@ -252,10 +284,10 @@ child_tax_credit <- function(hh_income, married_couple, num_children){
     case_when(
       
       # Married couple
-      married_couple == 1 ~ pmax(0, (2000 * num_children) - 0.05 * mod_income),
+      marital_status == 1 ~ pmax(0, (2000 * tot_children) - 0.05 * mod_income),
       
       # Single household
-      married_couple == 0 ~ pmax(0, (2000 * num_children) - 0.05 * mod_income),
+      marital_status == 0 ~ pmax(0, (2000 * tot_children) - 0.05 * mod_income),
       
       TRUE ~ 0)
   
@@ -270,14 +302,14 @@ child_tax_credit <- function(hh_income, married_couple, num_children){
 ```{r}
 # Normal proposal 
 
-ctc_asec <-
-  asec %>% 
-  select(married_couple, hh_income, num_children)
+asec_ctc <-
+  asec_2022 %>% 
+  select(marital_status, hh_income, tot_children)
 
 normal_ctc <-
-  ctc_asec %>% 
+  asec_ctc %>% 
   mutate(
-    benefit = pmap_dbl(ctc_asec, child_tax_credit))
+    benefit = pmap_dbl(asec_ctc, child_tax_credit))
 
 ```
 
@@ -327,56 +359,77 @@ Pre-processing ASEC data
 
 # Appending data, adding benefit to total income
 
-asec_full <-
+asec_mod_inc <-
   
   bind_cols(
-    asec, 
+    asec_2022, 
     arpa_credit$benefit, 
     normal_ctc$benefit) %>% 
   
   mutate(
-    arpa_benefit = ...6,
-    ctc_reg = ...7) %>% 
+    arpa_benefit = ...14,
+    ctc_reg = ...15) %>% 
   
   select(
-    hh_income,
     arpa_benefit,
-    ctc_reg) %>% 
+    ctc_reg,
+    hh_income) %>% 
   
   mutate(
-    no_ctc_inc = hh_income,
     arpa_tot_inc = hh_income + arpa_benefit,
     ctc_reg_tot_inc = hh_income + ctc_reg) %>% 
   
   select(
-    no_ctc_inc,
     arpa_tot_inc,
-    ctc_reg_tot_inc)
+    ctc_reg_tot_inc,
+    - hh_income)
+  
+# Appending back to original data set
+asec_full <-
+  bind_cols(
+    asec_2022,
+    asec_mod_inc)
 
-# Refactoring data
+
+# Refactoring data to match CPS structure
 
 asec_refactored <-
+  
   asec_full %>% 
+  
+  select(
+    age,
+    sex,
+    race,
+    emp_status,
+    education,
+    marital_status,
+    hh_income,
+    arpa_tot_inc,
+    ctc_reg_tot_inc) %>% 
+  
+  # Refactoring income 
+  
   mutate(
     
-    no_ctc_inc =
+    hh_income =
       case_when(
-        no_ctc_inc < 5000 ~ 1,
-        no_ctc_inc <= 7499 ~ 2,
-        no_ctc_inc <= 9999 ~ 3,
-        no_ctc_inc <= 12499 ~ 4,
-        no_ctc_inc <= 14999 ~ 5,
-        no_ctc_inc <= 19999 ~ 6,
-        no_ctc_inc <= 24999 ~ 7,
-        no_ctc_inc <= 29999 ~ 8, 
-        no_ctc_inc <= 34999 ~ 9,
-        no_ctc_inc <= 39999 ~ 10,
-        no_ctc_inc <= 49999 ~ 11,
-        no_ctc_inc <= 59999 ~ 12,
-        no_ctc_inc <= 74999 ~ 13,
-        no_ctc_inc <= 99999 ~ 14,
-        no_ctc_inc <= 149999 ~ 15,
-        no_ctc_inc >= 150000 ~ 16),
+        hh_income < 5000 ~ 1,
+        hh_income <= 7499 ~ 2,
+        hh_income <= 9999 ~ 3,
+        hh_income <= 12499 ~ 4,
+        hh_income <= 14999 ~ 5,
+        hh_income <= 19999 ~ 6,
+        hh_income <= 24999 ~ 7,
+        hh_income <= 29999 ~ 8, 
+        hh_income <= 34999 ~ 9,
+        hh_income <= 39999 ~ 10,
+        hh_income <= 49999 ~ 11,
+        hh_income <= 59999 ~ 12,
+        hh_income <= 74999 ~ 13,
+        hh_income <= 99999 ~ 14,
+        hh_income <= 149999 ~ 15,
+        hh_income >= 150000 ~ 16),
     
     arpa_tot_inc =
       case_when(
@@ -414,8 +467,45 @@ asec_refactored <-
         ctc_reg_tot_inc <= 74999 ~ 13,
         ctc_reg_tot_inc <= 99999 ~ 14,
         ctc_reg_tot_inc <= 149999 ~ 15,
-        ctc_reg_tot_inc >= 150000 ~ 16))
-
+        ctc_reg_tot_inc >= 150000 ~ 16)) %>% 
+  
+  # Refactoring education (1 = no hs degree, 2 = hs diploma, 3 = some college,
+  # 4 = bachelor's, 5 = higher degree)
+  
+  mutate(
+    education = 
+      case_when(
+        education <= 072 ~ 1,
+        education == 73 ~ 2,
+        education <= 110 ~ 3,
+        education <= 122 ~ 4,
+        education <= 125 ~ 5)) %>% 
+  
+  # Refactoring race (1 = White, 2 = Black, 3 = American indian, 4 = Asian, 5 = 2 or more races and other)
+  
+  mutate(
+    race = 
+      case_when(
+        race == 100 ~ 1,
+        race == 200 ~ 2,
+        race == 300 ~ 3,
+        race == 650 ~ 4,
+        race == 651 ~ 4,
+        race == 652 ~ 4, 
+        race > 660 ~ 5)) %>% 
+  
+  # Refactoring employment (1 = employed, 2 = unemployed)
+  
+  mutate(
+    emp_status =
+      case_when(
+        emp_status == 01 ~ 1,
+        emp_status == 02 ~ 1,
+        emp_status == 10 ~ 1,
+        emp_status == 12 ~ 1,
+        emp_status <= 36 ~ 0))
+  
+  
 ```
 
 Reading in the CPS Voting Supplement Data
@@ -424,7 +514,7 @@ Reading in the CPS Voting Supplement Data
 cps <- read_csv(here("data/cps_supp.csv")) %>% 
   
   select(
-    HRHHID,
+    PRTAGE,
     PEEDUCA,
     PEMARITL,
     PESEX,
@@ -435,31 +525,66 @@ cps <- read_csv(here("data/cps_supp.csv")) %>%
     PES1) %>% 
   
   mutate(
-    hhid = HRHHID,
     education = PEEDUCA,
+    age = PRTAGE,
     marital_status = PEMARITL,
     sex = PESEX,
     emp_status = PEMLR,
     race = PTDTRACE,
-    fam_inc = HEFAMINC,
+    hh_income = HEFAMINC,
     voted = PES1) %>%
   
   filter(
     !education == -1,
+    !age < 0,
     !marital_status == -1,
     !emp_status == -1,
     !race == -1,
-    !fam_inc == -1,
+    !hh_income == -1,
     !voted < 0) %>% 
   
   select(
-    hhid,
+    age,
+    sex,
+    race,
     education,
     marital_status,
     emp_status,
-    race,
-    fam_inc,
-    voted)
+    hh_income,
+    voted) %>% 
+  
+   # Refactoring education (1 = no hs degree, 2 = hs diploma, 3 = some college, # 4 = bachelor's, 5 = higher degree)
+  
+  mutate(
+    education = 
+      case_when(
+        education <= 38 ~ 1,
+        education == 39 ~ 2,
+        education <= 42 ~ 3,
+        education == 43 ~ 4,
+        education <= 46 ~ 5)) %>% 
+
+  # Refactoring race (1 = White, 2 = Black, 3 = American indian, 4 = Asian, 5 = 2 or more races and other)
+  
+  mutate(
+    race = 
+      case_when(
+        race == 01 ~ 1,
+        race == 02 ~ 2,
+        race == 03 ~ 3,
+        race == 04 ~ 4,
+        race == 05 ~ 4,
+        race <= 26 ~ 5)) %>% 
+  
+  # Refactoring employment (1 = employed, 2 = unemployed)
+  
+  mutate(
+    emp_status =
+      case_when(
+        emp_status == 1 ~ 1,
+        emp_status == 2 ~ 1,
+        emp_status <= 7 ~ 0))
+  
 
 ```
 
@@ -531,7 +656,7 @@ Exploratory data analysis - Mean income under each policy
 asec_full %>% 
   
   summarize(
-    avg_none = mean(no_ctc_inc),
+    avg_none = mean(hh_income),
     avg_ctc = mean(ctc_reg_tot_inc),
     avg_arpa = mean(arpa_tot_inc)) %>% 
   
