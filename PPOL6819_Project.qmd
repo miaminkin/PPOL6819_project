@@ -574,31 +574,36 @@ cps_ml <- cps %>%
 
 ```
 
-Basic ML clean up
+Machine Learning - MODEL ONE (Estimating impact of ARPA CTC on voter turnout)
+
+Data Prepping - ARPA CTC Model
 
 ```{r}
+arpa_cps_data <-
+  cps_ml %>% 
+  select(-income_category_shift_CTC)
+
 # Set seed 
 set.seed(20231214)
 
 # Create an 80-20 split object
-cps_split <- initial_split(data = cps_ml, prop = 0.8)
+arpa_cps_split <- initial_split(data = arpa_cps_data, prop = 0.8)
 
 # Create the training (80%) and testing (20%) data
-cps_train <- training(cps_split)
-cps_test  <- testing(cps_split)
+arpa_cps_train <- training(arpa_cps_split)
+arpa_cps_test  <- testing(arpa_cps_split)
 
 ```
 
-Logistic regression with ARPA
+Logistic Regression Model
 
 ```{r}
 # Logistic regression recipe
 logistic_recipe <- 
-  recipe(voted ~ ., data = cps_train) %>%
+  recipe(voted ~ ., data = arpa_cps_train) %>%
   step_novel(all_nominal_predictors()) %>% 
   step_zv(all_predictors()) %>% 
-  step_normalize(all_numeric_predictors()) %>% 
-  step_rm(income_category_shift_CTC)
+  step_normalize(all_numeric_predictors())
 
 # Logistic regression model specification
 logistic_model <- 
@@ -614,7 +619,7 @@ logistic_wf <-
 
 # Cross-validation on the training set
 folds <- 
-  vfold_cv(cps_train, v = 5, repeats = 2)
+  vfold_cv(arpa_cps_train, v = 5, repeats = 2)
 
 # Fit the model using cross-validation on the training set
 logistic_resamples <- 
@@ -625,19 +630,75 @@ logistic_resamples <-
 logistic_resamples %>% 
   collect_metrics()
 
+# Finalizing model 
+logistic_best_arpa <-
+  logistic_resamples %>% 
+  select_best(metric = "accuracy")
+
+# Final model selection
+logistic_final_arpa <-
+  logistic_model %>% 
+  finalize_model(logistic_best_arpa)
+
+# Final work flow
+logistic_final_wf_arpa <-
+  workflow() %>% 
+  add_recipe(logistic_recipe) %>% 
+  add_model(logistic_final_arpa)
+
+# Fitting best model
+logistic_final_arpa_fit <-
+  logistic_final_wf_arpa %>% 
+  fit(data = arpa_cps_train)
+
+# Model predictions
+logistic_arpa_predictions <-
+  bind_cols(
+    arpa_cps_train,
+    predict(
+      object = logistic_final_arpa_fit,
+      new_data = arpa_cps_train))
+
+# Results
+conf_mat(
+  data = logistic_arpa_predictions,
+  truth = voted,
+  estimate = .pred_class)
+
+## TP = 27242 / TN = 10935 / FP = 4229 / FN = 6932
+#Precision rate= [27242/(27242+4229)] = 0.86
+#Recall rate=[27242/(27242+6932)] = 0.80
+
 ```
 
+Data Prepping - Normal CTC Model
+
+```{r}
+ctc_cps_data <-
+  cps_ml %>% 
+  select(-income_category_shift_ARPA)
+
+# Set seed 
+set.seed(4323)
+
+# Create an 80-20 split object
+ctc_cps_split <- initial_split(data = ctc_cps_data, prop = 0.8)
+
+# Create the training (80%) and testing (20%) data
+ctc_cps_train <- training(ctc_cps_split)
+ctc_cps_test  <- testing(ctc_cps_split)
+
+```
 Logistic regression with CTC
 
 ```{r}
 
 # Logistic regression recipe
 logistic_recipe_ctc <- 
-  recipe(voted ~ ., data = cps_train) %>%
+  recipe(voted ~ ., data = ctc_cps_train) %>%
   step_novel(all_nominal_predictors()) %>% 
   step_zv(all_predictors()) %>% 
-  step_normalize(all_numeric_predictors()) %>% 
-  step_rm(income_category_shift_ARPA)
+  step_normalize(all_numeric_predictors())
 
 # Logistic regression model specification
 logistic_model_ctc <- 
@@ -651,13 +712,149 @@ logistic_wf_ctc <-
   add_recipe(logistic_recipe_ctc) %>% 
   add_model(logistic_model_ctc)
 
+# Cross-validation on the training set
+foldsB <- 
+  vfold_cv(ctc_cps_train, v = 5, repeats = 2)
+
 # Fit the model using cross-validation on the training set
 logistic_resamples_ctc <- 
   logistic_wf_ctc %>% 
-  fit_resamples(folds)
+  fit_resamples(foldsB)
 
 # Collect and check cross-validation results
 logistic_resamples_ctc %>% 
   collect_metrics()
+
+# Finalizing model 
+logistic_best_ctc <-
+  logistic_resamples_ctc %>% 
+  select_best(metric = "accuracy")
+
+# Final model selection
+logistic_final_ctc <-
+  logistic_model_ctc %>% 
+  finalize_model(logistic_best_ctc)
+
+# Final work flow
+logistic_final_wf_ctc <-
+  workflow() %>% 
+  add_recipe(logistic_recipe_ctc) %>% 
+  add_model(logistic_final_ctc)
+
+# Fitting best model
+logistic_final_ctc_fit <-
+  logistic_final_wf_ctc %>% 
+  fit(data = ctc_cps_train)
+
+# Model predictions
+logistic_ctc_predictions <-
+  bind_cols(
+    ctc_cps_train,
+    predict(
+      object = logistic_final_ctc_fit,
+      new_data = ctc_cps_train))
+
+# Results
+conf_mat(
+  data = logistic_ctc_predictions,
+  truth = voted,
+  estimate = .pred_class)
+
+## TP = 7112 / TN = 27050 / FP = 4298 / FN = 10878
+#Precision rate= [27242/(27242+4229)] = 0.86
+#Recall rate=[27242/(27242+6932)] = 0.80
+
+```
+
+Model fit under ARPA CTC (Expanded CTC)
+
+```{r}
+vote_predictions_arpa <-
+  bind_cols(
+    arpa_cps_test,
+    predict(
+      object = logistic_final_arpa_fit,
+      new_data = arpa_cps_test))
+```
+
+Model fit under Normal CTC (Non expanded CTC)
+
+```{r}
+vote_predictions_ctc <-
+  bind_cols(
+    ctc_cps_test,
+    predict(
+      object = logistic_final_ctc_fit,
+      new_data = ctc_cps_test))
+```
+
+Federal Voter Turnout Rate Estimations
+
+```{r}
+
+# Expected voter turnout rate - ARPA
+
+vote_predictions_arpa %>% 
+  
+  select(.pred_class) %>% 
+  rename(vote_pred = .pred_class) %>%
+  mutate(vote_pred = as.numeric(vote_pred)) %>% 
+  
+  summarize(
+    total_votes = n(),
+    .by = vote_pred) %>% 
+  
+  pivot_wider(
+    values_from = total_votes,
+    names_from = vote_pred) %>% 
+  
+  rename(
+    voted = `1`,
+    no_vote = `2`) %>%
+  
+  summarize(
+    turnout_rate_arpa = voted / (voted + no_vote))
+
+
+# Expected voter turnout rate - CTC
+
+vote_predictions_ctc %>% 
+  select(.pred_class) %>% 
+  rename(vote_pred = .pred_class) %>%
+  mutate(vote_pred = as.numeric(vote_pred)) %>% 
+  
+  summarize(
+    total_votes = n(),
+    .by = vote_pred) %>% 
+  
+  pivot_wider(
+    values_from = total_votes,
+    names_from = vote_pred) %>% 
+  
+  rename(
+    voted = `1`,
+    no_vote = `2`) %>%
+  
+  summarize(
+    turnout_rate_ctc = voted / (voted + no_vote))
+
+# Voter turnout rate (no CTC)
+
+cps %>% 
+  
+  summarize(
+    total_votes = n(),
+    .by = voted) %>% 
+  
+  pivot_wider(
+    values_from = total_votes,
+    names_from = voted) %>% 
+  
+  rename(
+    voted = `1`,
+    no_vote = `2`) %>%
+  
+  summarize(
+    turnout_rate_none = voted / (voted + no_vote))
 
 ```
