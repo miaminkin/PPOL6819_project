@@ -4,28 +4,31 @@ author: "Mia Minkin, Yash Dhuldhoya, and Jack Gleisberg"
 format: html
 code-fold: true
 embed-resources: true
-editor: visual
+editor: source
 ---
 
 # PPOL6819 Final Project / Fall 2023
 
 # Predicting the Impact of the Expanded Child Tax Credit on Voter Turnout in the United States
 
-## Background (TO BE COMPLETED)
+## Background 
 
--   Overview of the federal child tax credit and its expansion under the American Rescue Plan
+-   **Overview of the federal child tax credit and its expansion under the American Rescue Plan (ARP).** The Child Tax Credit (CTC) is a tax benefit that helps families with the costs of raising children. First signed into law in [1997](https://www.cbpp.org/research/policy-basics-the-child-tax-credit), the CTC has expanded, or increased the benefits of the policy, several times. Most recently, in response to the economic and public health challenges spurred by the COVID-19 pandemic. In 2021, Congress passed the American Rescue Plan Act (ARPA). With passage of the ARPA, the CTC [temporarily increased](https://www.whitehouse.gov/child-tax-credit/) from \$2,000 per child to \$3,000 per child for children over the age of six and \$3,600 for children under the age of six. It also raised the age limit of eligible children from 16 to 17. Details on the specific CTC policies are outlined below.
 
--   Connection between income and voter turnout - elasticity between \$ and voting, cost-benefit
+```{=html}
+<!-- -->
+```
+-   **Income and voter turnout.** While the primary goal of welfare policies like the CTC is to provide relief and increase the economic security of eligible recipients, particularly low-income families, income interacts closely with a wide-variety of social behaviors. Many scholars have found that there is a positive relationship between income and voter turnout. As one's income increases, so to does their likelihood of voting. In 1980, Wolfinger and Rosenstone, found that the effect of income on voter turnout is greater at lower income levels; that once a voter reaches a "modestly comfortable standard of living," the effect of income on voter turnout flattens. This has also been reflected more broadly. For example, the voter turnout rate for individuals in the highest income group exceeds that of lower income levels. The relationship between income and voter turnout is often explored in terms of costs and benefits. Increased barriers and burdens to voting may disproportionally impact lower income populations, such as needing time off to vote, finding child care, and the level of effort or time involved with voter registration.
 
--   Hypothesis
+-   **Hypothesis.** This project explores the impact of expanding the CTC on Presidential voter turnout rate. We hypothesize that when income increases as a result of the expanded CTC, the probability of voter turnout also increases.
 
-## Introduction (TO BE COMPLETED)
+## Introduction 
 
--   Overview of the project
+-   **Project Overview.** This project focuses on voter turnout. Specifically, we are interested in the impact of wealth - or income - on an individual's proposensity to vote in a Presidential election. Participating in U.S. elections is a voluntary choice. Yet, it is critical to the functioning of our democratic society. Even though the 2020 Presidential election had one of the highest rates of voter turnout on record, [only 2/3](https://www.census.gov/newsroom/press-releases/2021/2020-presidential-election-voting-and-registration-tables-now-available.html) of eligible voters turned out. Elections, especially Presidential elections, have major implications to lives and livelihoods across the nation. Ensuring there is equal opportunity to participate in elections is a national imperative. Moreover, identifying systematic barriers to voting, such as income, can help produce evidence-based insights that improve access to voting through more targeted interventions (e.g., communications and outreach campaigns). Ultimately, these insights aim to improve election fairness and representation. And while the focus of this project is not specifically on the ARPA's expanded CTC, it may illuminate the positive externalities associated with welfare policies.
 
--   Description of approach - microsim model and ML model
+-   **Approach** - To test our hypothesis, we leverage a multi-pronged analytic approach. First, we create two microsimulation models to estimate the effect of the CTC on household income. The first microsimulation model calculates the tax benefit for families under the current CTC and the second models the total tax benefit for families under the expanded CTC. We then employ several data pre-processing and cleaning steps necessary to conduct the analysis. This includes re-factoring variables, calculating the shift in probability variables, merging these new data together, creating training and testing splits, setting up cross-fold validation. Next, we use the simulated income data to train several Machine Learning (ML) models to estimate the effect income elasticity on voter turnout. Specifically, we estimate this effect using logistic regression performed on both the expanded CTC and current CTC income.
 
--   Discussion of the data sets being utilized (ASEC and CPS voting supplement)
+-   **Data** - This project uses publicly available data from the U.S. Census Bureau's Current Population Survey (CSP). Specifically, we use the following components of the CPS: 1.) the [Annual Social and Economic Supplement (ASEC)](https://www.census.gov/data/datasets/time-series/demo/cps/cps-asec.html) and 2.) [Voting Supplement data](https://www.census.gov/data/datasets/time-series/demo/cps/cps-supp_cps-repwgt/cps-voting.html). The ASEC provides socio-economic data required to simulate the CTC benefits, including income, number of children, age of children, and marital status. The Voting Supplement provides data on key variables such as education, marital status, labor force status, race, income, and whether or not an individual voted.
 
 ## Microsimulation Model
 
@@ -40,13 +43,16 @@ Maximum credit:
 Phase-out levels:
 
 1.  The available tax credit is reduced by \$50 for each \$1000 exceeding the income threshold below until the benefit reaches \$2000 / child:
-    -   \$150,000 for married couples filing a joint return
 
-    -   \$75,000 for single filer or married couples filing separate returns
+-   \$150,000 for married couples filing a joint return
+
+-   \$75,000 for single filer or married couples filing separate returns
+
 2.  The available tax credit will not be reduced to below \$2000 / child until the household income exceeds the threshold below:
-    -   \$400,000 for married couples filing a joint return
 
-    -   \$200,000 for all other filers
+-   \$400,000 for married couples filing a joint return
+
+-   \$200,000 for all other filers
 
 **Assumptions:**
 
@@ -59,12 +65,13 @@ Phase-out levels:
 
 ```{r, output = FALSE}
 # Loading in packages
+library(tidymodels)
 library(tidyverse)
 library(here)
 
 # Loading in data
 asec <- read_csv(here("data/asec23_family.csv")) %>% 
-
+  
   # Subsetting data for microsimulation model
   
   select(
@@ -78,7 +85,7 @@ asec <- read_csv(here("data/asec23_family.csv")) %>%
       case_when(
         FKIND > 1 ~ 0,
         FKIND == 1 ~ 1)) %>%
-    
+  
   mutate(
     hh_income = FTOTVAL,
     married_couple = FKIND,
@@ -110,14 +117,14 @@ asec <- read_csv(here("data/asec23_family.csv")) %>%
 
 arpa_tax_credit <- function(hh_income, married_couple, older_children, young_children){
   
-# Assumption: Maximum income for full benefit = $75,000 if one head of household OR $150,000 if married household
+  # Assumption: Maximum income for full benefit = $75,000 if one head of household OR $150,000 if married household
   
   mod_income <- 
     if_else(
       condition = married_couple == 1,
       true = pmax(hh_income - 150000, 0),
       false = pmax(hh_income - 75000, 0))
-
+  
   # Benefit per child
   
   benefit <- 
@@ -127,7 +134,7 @@ arpa_tax_credit <- function(hh_income, married_couple, older_children, young_chi
       # Married couple, income < 400k, only older children
       married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children == 0 ~ 
         pmax(2000, (3000 * older_children) - 0.05 * mod_income),
-
+      
       # Married couple, income > 400k, only older children
       married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children == 0 ~ 
         pmax(0, (3000 * older_children) - 0.05 * mod_income),
@@ -149,33 +156,33 @@ arpa_tax_credit <- function(hh_income, married_couple, older_children, young_chi
         pmax(0, (3600 * young_children) - 0.05 * mod_income),
       
       # Single household, income < 200k, only young children
-     married_couple == 0 & hh_income < 200000 & older_children == 0 & young_children >= 1 ~ 
+      married_couple == 0 & hh_income < 200000 & older_children == 0 & young_children >= 1 ~ 
         pmax(2000, (3600 * young_children) - 0.05 * mod_income),
-     
+      
       # Single household, income > 200k, only young children
-     married_couple == 0 & hh_income > 200000 & older_children == 0 & young_children >= 1 ~ 
+      married_couple == 0 & hh_income > 200000 & older_children == 0 & young_children >= 1 ~ 
         pmax(0, (3600 * young_children) - 0.05 * mod_income),
-  
+      
       # Married couple, income < 400k, older and young children
-     married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children >= 1 ~
-       pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
-
+      married_couple == 1 & hh_income < 400000 & older_children >= 1 & young_children >= 1 ~
+        pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      
       # Married couple, income > 400k, older and young children
-     married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children >= 1 ~
-       pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
-     
+      married_couple == 1 & hh_income > 400000 & older_children >= 1 & young_children >= 1 ~
+        pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      
       # Single couple, income < 200k, older and young children
-     married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children >= 1 ~
-       pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
-     
+      married_couple == 0 & hh_income < 200000 & older_children >= 1 & young_children >= 1 ~
+        pmax(2000, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      
       # Single couple, income > 200k, older and young children
-     married_couple == 0  & hh_income > 200000 & older_children >= 1 & young_children >= 1 ~
-       pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
-
-    TRUE ~ 0)
+      married_couple == 0  & hh_income > 200000 & older_children >= 1 & young_children >= 1 ~
+        pmax(0, ((3000 * older_children) + (3600 * young_children)) - 0.05 * mod_income),
+      
+      TRUE ~ 0)
   
   return(benefit)
-    
+  
 }
 
 ```
@@ -187,12 +194,12 @@ arpa_tax_credit <- function(hh_income, married_couple, older_children, young_chi
 arpa_prop_asec <-
   asec %>% 
   select(!num_children)
-  
+
 arpa_credit <-
   arpa_prop_asec %>%
   mutate(
     benefit = pmap_dbl(arpa_prop_asec, arpa_tax_credit))
-  
+
 ```
 
 **Accounting rules for the NON expanded Child Tax Credit**
@@ -204,9 +211,10 @@ Maximum credit:
 Phase-out levels:
 
 1.  The available tax credit is reduced by \$50 per \$1000 above the threshold outlined below:
-    -   \$400,000 for married couples filing a joint return
 
-    -   \$200,000 for all other filers
+-   \$400,000 for married couples filing a joint return
+
+-   \$200,000 for all other filers
 
 **Assumptions:**
 
@@ -229,14 +237,14 @@ Phase-out levels:
 
 child_tax_credit <- function(hh_income, married_couple, num_children){
   
-# Assumption: Maximum income for full benefit = $200,000 if one head of household OR $400,000 if married household
+  # Assumption: Maximum income for full benefit = $200,000 if one head of household OR $400,000 if married household
   
   mod_income <- 
     if_else(
       condition = married_couple == 1,
       true = pmax(hh_income - 400000, 0),
       false = pmax(hh_income - 200000, 0))
-
+  
   # Benefit per child
   
   benefit <- 
@@ -248,11 +256,11 @@ child_tax_credit <- function(hh_income, married_couple, num_children){
       
       # Single household
       married_couple == 0 ~ pmax(0, (2000 * num_children) - 0.05 * mod_income),
-
-    TRUE ~ 0)
+      
+      TRUE ~ 0)
   
   return(benefit)
-    
+  
 }
 
 ```
@@ -270,7 +278,7 @@ normal_ctc <-
   ctc_asec %>% 
   mutate(
     benefit = pmap_dbl(ctc_asec, child_tax_credit))
-  
+
 ```
 
 **Distributional analysis**
@@ -285,7 +293,7 @@ arpa_credit <-
   arpa_credit %>% 
   mutate(
     credit = "arpa_ctc")
-  
+
 credits_combined <-
   bind_rows(normal_ctc, arpa_credit)
 
@@ -306,7 +314,7 @@ credits_combined %>%
     subtitle = "Comparing the expanded CTC versus the normal CTC",
     x = "Credit type",
     y = "Mean benefit")
-  
+
 ```
 
 ## Machine Learning Model
@@ -350,8 +358,8 @@ asec_full <-
 asec_refactored <-
   asec_full %>% 
   mutate(
-   
-     no_ctc_inc =
+    
+    no_ctc_inc =
       case_when(
         no_ctc_inc < 5000 ~ 1,
         no_ctc_inc <= 7499 ~ 2,
@@ -369,7 +377,7 @@ asec_refactored <-
         no_ctc_inc <= 99999 ~ 14,
         no_ctc_inc <= 149999 ~ 15,
         no_ctc_inc >= 150000 ~ 16),
-   
+    
     arpa_tot_inc =
       case_when(
         arpa_tot_inc < 5000 ~ 1,
@@ -389,7 +397,7 @@ asec_refactored <-
         arpa_tot_inc <= 149999 ~ 15,
         arpa_tot_inc >= 150000 ~ 16),
     
-     ctc_reg_tot_inc =
+    ctc_reg_tot_inc =
       case_when(
         ctc_reg_tot_inc < 5000 ~ 1,
         ctc_reg_tot_inc <= 7499 ~ 2,
@@ -416,6 +424,7 @@ Reading in the CPS Voting Supplement Data
 cps <- read_csv(here("data/cps_supp.csv")) %>% 
   
   select(
+    HRHHID,
     PEEDUCA,
     PEMARITL,
     PESEX,
@@ -426,6 +435,7 @@ cps <- read_csv(here("data/cps_supp.csv")) %>%
     PES1) %>% 
   
   mutate(
+    hhid = HRHHID,
     education = PEEDUCA,
     marital_status = PEMARITL,
     sex = PESEX,
@@ -443,13 +453,14 @@ cps <- read_csv(here("data/cps_supp.csv")) %>%
     !voted < 0) %>% 
   
   select(
+    hhid,
     education,
     marital_status,
     emp_status,
     race,
     fam_inc,
     voted)
-  
+
 ```
 
 Exploratory Data Analysis - Voter turnout rate by income level
@@ -496,7 +507,7 @@ voter_turnout <-
   
   mutate(
     inc_grouped = fct_reorder(inc_grouped, turnout_rate, .desc = FALSE))
-      
+
 voter_turnout %>% 
   
   ggplot() +
@@ -506,7 +517,7 @@ voter_turnout %>%
       x = inc_grouped, 
       y = turnout_rate),
     fill = "blue") +
-      
+  
   labs(
     title = "Voter Turnout Rate by Income Level",
     x = "Income Level",
@@ -530,19 +541,123 @@ asec_full %>%
   mutate(
     policy = name,
     avg_inc = value) %>% 
- 
-   select(
+  
+  select(
     policy,
     avg_inc) %>% 
   
   kableExtra::kable()
 ```
 
+# ML model
 
+First, we create the shift in probability variables and merge them with CPS
 
+```{r}
+asec_summary <- 
+  asec_refactored %>%
+  reframe(
+    Proportion_No_CTC = (table(factor(no_ctc_inc, levels = 1:16)) / n())*100,
+    Proportion_ARPA = (table(factor(arpa_tot_inc, levels = 1:16)) / n())*100,
+    Proportion_CTC = (table(factor(ctc_reg_tot_inc, levels = 1:16)) / n())*100) %>% 
+  mutate(
+    Shift_Probability_ARPA = Proportion_ARPA - Proportion_No_CTC,
+    Shift_Probability_CTC = Proportion_CTC - Proportion_No_CTC)
 
+cps_ml <- cps %>%
+  mutate(
+    income_category_shift_ARPA = as.factor(asec_summary$Shift_Probability_ARPA[fam_inc]),
+    income_category_shift_CTC = as.factor(asec_summary$Shift_Probability_CTC[fam_inc]),
+    voted = as.factor(voted)
+  ) %>%
+  select(education, marital_status, emp_status, race, income_category_shift_ARPA, voted, income_category_shift_CTC)
 
+```
 
+Basic ML clean up
 
+```{r}
+# Set seed 
+set.seed(20231214)
 
+# Create an 80-20 split object
+cps_split <- initial_split(data = cps_ml, prop = 0.8)
 
+# Create the training (80%) and testing (20%) data
+cps_train <- training(cps_split)
+cps_test  <- testing(cps_split)
+
+```
+
+Logistic regression with ARPA
+
+```{r}
+# Logistic regression recipe
+logistic_recipe <- 
+  recipe(voted ~ ., data = cps_train) %>%
+  step_novel(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_rm(income_category_shift_CTC)
+
+# Logistic regression model specification
+logistic_model <- 
+  logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+# Workflow
+logistic_wf <- 
+  workflow() %>% 
+  add_recipe(logistic_recipe) %>% 
+  add_model(logistic_model)
+
+# Cross-validation on the training set
+folds <- 
+  vfold_cv(cps_train, v = 5, repeats = 2)
+
+# Fit the model using cross-validation on the training set
+logistic_resamples <- 
+  logistic_wf %>% 
+  fit_resamples(folds)
+
+# Collect and check cross-validation results
+logistic_resamples %>% 
+  collect_metrics()
+
+```
+
+Logistic regression with CTC
+
+```{r}
+
+# Logistic regression recipe
+logistic_recipe_ctc <- 
+  recipe(voted ~ ., data = cps_train) %>%
+  step_novel(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_rm(income_category_shift_ARPA)
+
+# Logistic regression model specification
+logistic_model_ctc <- 
+  logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+# Workflow
+logistic_wf_ctc <- 
+  workflow() %>% 
+  add_recipe(logistic_recipe_ctc) %>% 
+  add_model(logistic_model_ctc)
+
+# Fit the model using cross-validation on the training set
+logistic_resamples_ctc <- 
+  logistic_wf_ctc %>% 
+  fit_resamples(folds)
+
+# Collect and check cross-validation results
+logistic_resamples_ctc %>% 
+  collect_metrics()
+
+```
