@@ -13,8 +13,8 @@ This project investigates the potential impact of the expanded Child Tax Credit 
 **Data Sources**: 
 The project uses data from two main sources:
 
-1. Annual Social and Economic Supplement (ASEC): Provides detailed socio-economic data necessary for simulating CTC benefits.
-2. Voting Supplement of the Current Population Survey (CPS): Offers essential variables for understanding voting behavior.
+1. [Annual Social and Economic Supplement (ASEC)](https://www.census.gov/data/datasets/time-series/demo/cps/cps-asec.html): Provides detailed socio-economic data necessary for simulating CTC benefits.
+2. [Voting Supplement of the Current Population Survey (CPS)](https://www.census.gov/data/datasets/time-series/demo/cps/cps-supp_cps-repwgt/cps-voting.html): Offers essential variables for understanding voting behavior.
 
 **View the Project Online**:
 Our project is hosted as a GitHub Pages site. You can view the project at [https://miaminkin.github.io/PPOL6819_project/pages/index.html](https://miaminkin.github.io/PPOL6819_project/pages/index.html). The website includes all write-up, code, and results.
