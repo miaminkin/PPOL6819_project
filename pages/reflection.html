@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>index</title>
+<title>reflection</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -2996,7 +2996,7 @@ h3{text-align: center;}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <div class="topnav">
-<p><a class="active" href="index.html">Introduction</a> <a href="microsimulation.html">Microsimulation</a> <a href="machine_learning.html">Machine Learning Models</a> <a href="reflection.qmd">Reflection</a> <a href="references.qmd">References</a></p>
+<p><a href="index.html">Introduction</a> <a href="microsimulation.html">Microsimulation</a> <a href="machine_learning.html">Machine Learning Models</a> <a class="active" href="reflection.qmd">Reflection</a> <a href="references.qmd">References</a></p>
 </div>
 <style>
 .topnav {
@@ -3020,32 +3020,21 @@ background-color: #add8e6;
 color: white;
 }
 </style>
-<section id="ppol6819-final-project---fall-2023" class="level1">
-<h1>PPOL6819 Final Project - Fall 2023</h1>
+<section id="reflection" class="level1">
+<h1>Reflection</h1>
+<section id="findings" class="level2">
+<h2 class="anchored" data-anchor-id="findings">Findings</h2>
+<p>As noted in the “Machine Learning” page where we synthesize the results of our model, we estimate that overall, under both child tax credit policies, voter turnout rates are expected to increase across all income groups, with greater increases overall under the ARPA expanded CTC. We estimate the highest increase in voter turnout rates among the wealthiest income group. For the lowest income group, we also estimate a substantial increase in voter turnout under both policies, though, this increase is not as much as the wealthiest income category.</p>
+<p>We also found the analysis of variable importance in our model to be illuminating. We found that age was the most important predictor in our model in predicting if an individual voted or not. We found that in our model, household income was among the most important predictor in predicting whether or not someone voted.</p>
+<p>Overall, we affirmed our initial hypothesis, that increases in income from the child tax credit is expected to increase federal voter turnout rates across all income groups, with the greatest increase from the ARP expanded child tax credit.</p>
 </section>
-<section id="predicting-the-impact-of-the-expanded-child-tax-credit-on-voter-turnout-in-the-united-states" class="level1">
-<h1><em>Predicting the Impact of the Expanded Child Tax Credit on Voter Turnout in the United States</em></h1>
-</section>
-<section id="by-mia-minkin-yash-dhuldhoya-and-jack-gleisberg" class="level1">
-<h1>By: Mia Minkin, Yash Dhuldhoya, and Jack Gleisberg</h1>
-<section id="background" class="level2">
-<h2 class="anchored" data-anchor-id="background">Background</h2>
-<p><strong>Overview of the federal child tax credit and its expansion under the American Rescue Plan (ARP)</strong></p>
-<p>The Child Tax Credit (CTC) is a tax benefit that helps families with the costs of raising children. First signed into law in <a href="https://www.cbpp.org/research/policy-basics-the-child-tax-credit">1997</a>, the CTC has expanded, or increased the benefits of the policy, several times. Most recently, in response to the economic and public health challenges spurred by the COVID-19 pandemic. In 2021, Congress passed the American Rescue Plan Act (ARPA). With passage of the ARPA, the CTC <a href="https://www.whitehouse.gov/child-tax-credit/">temporarily increased</a> from $2,000 per child to $3,000 per child for children over the age of six and $3,600 for children under the age of six. It also raised the age limit of eligible children from 16 to 17. Details on the specific CTC policies are outlined below.</p>
-<p><strong>Relationship between income and voter turnout</strong></p>
-<p>While the primary goal of welfare policies like the CTC is to provide relief and increase the economic security of eligible recipients, particularly low-income families, income interacts closely with a wide-variety of social behaviors. Many scholars have found that there is a positive relationship between income and voter turnout. As one’s income increases, so to does their likelihood of voting. In 1980, Wolfinger and Rosenstone, found that the effect of income on voter turnout is greater at lower income levels; that once a voter reaches a “modestly comfortable standard of living,” the effect of income on voter turnout flattens. This has also been reflected more broadly. For example, the voter turnout rate for individuals in the highest income group exceeds that of lower income levels. The relationship between income and voter turnout is often explored in terms of costs and benefits. Increased barriers and burdens to voting may disproportionately impact lower income populations, such as needing time off to vote, finding child care, and the level of effort or time involved with voter registration.</p>
-<p><strong>Hypothesis</strong></p>
-<p>This project explores the impact of expanding the CTC on Presidential voter turnout rate. We hypothesize that when income increases as a result of the expanded CTC, the overall federal voter turnout in Presidential elections increases.</p>
-</section>
-<section id="project-description" class="level2">
-<h2 class="anchored" data-anchor-id="project-description">Project Description</h2>
-<p><strong>Project Overview</strong></p>
-<p>This project focuses on voter turnout. Specifically, we are interested in the impact of wealth - or income - on an individual’s propensity to vote in a Presidential election. Participating in U.S. elections is a voluntary choice. Yet, it is critical to the functioning of our democratic society. Even though the 2020 Presidential election had one of the highest rates of voter turnout on record, <a href="https://www.census.gov/newsroom/press-releases/2021/2020-presidential-election-voting-and-registration-tables-now-available.html">only 2/3</a> of eligible voters turned out. Elections, especially Presidential elections, have major implications to lives and livelihoods across the nation. Ensuring there is equal opportunity to participate in elections is a national imperative. Moreover, identifying systematic barriers to voting, such as income, can help produce evidence-based insights that improve access to voting through more targeted interventions (e.g., communications and outreach campaigns). Ultimately, these insights aim to improve election fairness and representation. And while the focus of this project is not specifically on the ARPA’s expanded CTC, it may illuminate the positive externalities associated with welfare policies.</p>
-<p><strong>Approach</strong></p>
-<p>To test our hypothesis, we leverage a multi-pronged analytic approach. First, we use individual-level data from the ASEC to create a microsimulation model. The goal of the microsimulation model is to simulate individual-level income under three scenarios: no CTC, current CTC, and the proposed policy. The accounting rules under which the microsimulation was created are explained below. While the ASEC has precise income values, the CPS Voting Supplement does not. Rather, it categorizes income into 16 categories (shown in pre-processing steps). Thus, to harmonize the variables across our two datasets, we categorize the three different estimates of income according to CPS categories. Even the other predictors such as age, sex, race, employment status, education level, and marital status have been harmonized for this purpose.</p>
-<p>Next, we use the CPS Voting Supplement to train (2) machine learning models. We train the model on the entire dataset and test it on the ASEC dataset to predict voter turnout rates. We use to machine learning models: a logistic regression and a random forest model. For both approaches, we follow standard prediction modelling practices. We begin by conducting exploratory data analysis, then setting up resampling, creating candidate models, fitting the best model to our training data, and evaluating the model. We fit these best models to predict voter turnout on the ASEC data. Notably, because the same individuals are not tracked in ASEC and CPS Voting Supplement, this approach cannot predict voting at the individual level. Because the two datasets are representative at the national level, we can only aggregate voter turnout at that level.</p>
-<p><strong>Data</strong></p>
-<p>This project uses publicly available data from the U.S. Census Bureau’s Current Population Survey (CSP). Specifically, we use the following components of the CPS: 1.) the <a href="https://www.census.gov/data/datasets/time-series/demo/cps/cps-asec.html">Annual Social and Economic Supplement (ASEC)</a> and 2.) <a href="https://www.census.gov/data/datasets/time-series/demo/cps/cps-supp_cps-repwgt/cps-voting.html">Voting Supplement data</a>. The ASEC provides socio-economic data required to simulate the CTC benefits, including income, number of children, age of children, and marital status. The Voting Supplement provides data on key variables such as education, marital status, labor force status, race, income, and whether or not an individual voted.</p>
+<section id="limitations" class="level2">
+<h2 class="anchored" data-anchor-id="limitations">Limitations</h2>
+<p>1. Our biggest limitation is the lack of granularity in our income data from the CPS. They transform income for a continuous variable to a categorical variable with 16 levels. Not only does this approach compromise on the variation in our data, it also affects the results of our microsimulation. Depending on the size of the benefit under CTC or ARPA, an individual may not necessarily move to a higher income category even if they have had a meaningful change in their income. As a result, there may be no variation in the income categories of an individual under the three scenarios unless they are at the threshold of a category where an increase in income moves them into a higher income category. However, given the way the CPS Voting Supplement is coded, there is no workaround to this limitation. At best, we can argue that our model potentially provides a lower bound change in voter turnout.</p>
+<p>2. Because the CPS and ASEC track different individuals in their data but are nationally representative, we can only make claims about changes in voter turnout at the national level. Our model is unable to provide insights into the changes at lower administrative levels For example, it could be that change in income has different implications in different regions, depending on the cost of living and other such factors.</p>
+<p>3. The study has a limited number of predictors in addition to income. Despite the relatively positive results, it could benefit from accounting for additional predictors like political climate, voter suppression tactics, and changes in voting laws.</p>
+<p>4. At the model level, both logistic regression and random forest have their limitations. Logistic regression assumes linearity which may not always be the case. Although, interpreting logistic regression results and assessing policy implications is more straightforward. Despite the stronger results from the random forest model, interpretability is compromised. For example, we cannot assess the direction and magnitude of the effect of income and how this might vary across states or when interacted with other variables. We also had a small number of predictors so we did not hypertune <code>mtry</code> but set it to two.</p>
+<p>5. While the study provides insights into the potential impact of welfare policies (like ARPA) on voter turnout, it cannot conclusively establish causation. This limits our ability to make specific policy recommendations based on the findings.</p>
 </section>
 </section>
 
