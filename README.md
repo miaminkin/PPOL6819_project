@@ -20,7 +20,7 @@ The project uses data from two main sources:
 Our project is hosted as a GitHub Pages site. You can view the project at [https://miaminkin.github.io/PPOL6819_project/pages/index.html](https://miaminkin.github.io/PPOL6819_project/pages/index.html). The website includes all write-up, code, and results.
 
 **Repository Contents**:
-1. pages/: This folder includes each rendered html page included in the github pages site, each page suitable for viewing in a web browser. This folder includes the following htmls: (1) index.html, (2) microsimulation.html, (3) machine_learning.html, (4) reflection.html, and (5) references.html. These document include detailed analysis, data pre-processing, exploratory data analysis, and modeling. 
+1. pages/: This folder includes each rendered html page included in the github pages site, each page suitable for viewing in a web browser. This folder includes the following htmls: (1) index.html, (2) microsimulation.html, (3) machine_learning.html, (4) reflection.html, and (5) references.html. These html documents include detailed analysis, data pre-processing, exploratory data analysis, and modeling. 
 
 2. README.md: This file summarizes the project and provides a roadmap of all the documents. 
 
